@@ -1,4 +1,4 @@
-### Day 1 Notes - Rust Intro~
+### Day 1 Notes - Rust Intro
 #### 4/1/2024
 
 - `Cargo new` command will setup rust a project for you
