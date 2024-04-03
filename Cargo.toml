@@ -1,5 +1,5 @@
 [package]
-name = "CS410-Rust-Web-Dev"
+name = "cs410-rust-web-dev"
 version = "0.1.0"
 edition = "2021"
 
