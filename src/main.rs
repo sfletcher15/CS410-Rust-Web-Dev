@@ -1,13 +1,16 @@
 use axum::{
     extract::Path,
-    routing::{get, post, put, delete},
-    Router,
-    Json,
     response::IntoResponse,
+    routing::{delete, get, post, put},
+    Json, Router,
 };
-use serde_json::json;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}};
+use serde_json::json;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Deserialize, Serialize)]
 struct Question {
