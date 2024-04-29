@@ -1,63 +1,53 @@
-use serde::Serialize;
-use std::str::FromStr;
-use std::io::{Error, ErrorKind};
 use axum::{
-    routing::{get},
+    routing::{get, post},
     Router,
     Json,
-    response::IntoResponse
+    response::IntoResponse,
 };
-use std::net::SocketAddr;
+use std::{
+    collections::HashMap, net::SocketAddr, sync::{Arc, Mutex}
+};
+use serde_json::json;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Deserialize, Serialize)]
 struct Question {
-    id: QuestionId,
-    title: String,
-    content: String,
-    tags: Option<Vec<String>>,
-}
-#[derive(Debug, Serialize)]
-struct QuestionId(String);
-
-impl Question {
-    fn new(id: QuestionId, title: String, content: String, tags: Option<Vec<String>>) -> Self {
-        Question {
-            id,
-            title,
-            content,
-            tags,
-        }
-    }
+    question: String,
 }
 
-impl FromStr for QuestionId {
-    type Err = Error;
-    fn from_str(id: &str) -> Result<Self, Self::Err> {
-        if id.is_empty() {
-            Err(Error::new(ErrorKind::InvalidInput, "No ID provided"))
-        } else {
-            Ok(QuestionId(id.to_string()))
-        }
-    }
+// Create a global hash map to store questions
+type Questions = Arc<Mutex<HashMap<i32, String>>>;
+
+// Initialize the global Questions HashMap
+lazy_static::lazy_static! {
+    static ref QUESTIONS: Questions = Arc::new(Mutex::new({
+        let mut map = HashMap::new();
+        map.insert(1, "What is Rust?".to_string());
+        map.insert(2, "How does memory safety work in Rust?".to_string());
+        map
+    }));
 }
 
 // Define the handler function
 async fn get_questions() -> impl IntoResponse {
-    let question = Question::new(
-        QuestionId::from_str("1").expect("No ID provided"),
-        "First Question".to_string(),
-        "Content of the question".to_string(),
-        Some(vec!["faq".to_string()])
-    );
+    let questions = QUESTIONS.lock().unwrap().clone();
+    Json(json!({ "questions": questions }))
+}
 
-    Json(question)
+async fn post_question(Json(data): Json<Question>) -> impl IntoResponse {
+    let mut questions = QUESTIONS.lock().unwrap();
+    let next_id = questions.len() as i32 + 1;
+    questions.insert(next_id, data.question.clone());
+
+    Json(json!({ "message": "Question added successfully", "question_id": next_id}))
 }
 
 #[tokio::main]
 async fn main() {
     // Setup the router
     let app = Router::new()
-        .route("/questions", get(get_questions));
+        .route("/questions", get(get_questions))
+        .route("/questions", post(post_question));
 
     // Define the address and run the server
     let addr = SocketAddr::from(([127, 0, 0, 1], 3030));
