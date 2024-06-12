@@ -16,6 +16,6 @@ Cargo.lock
 # ENV files for envoronment variables
 *.env
 
-# Added by cargo
-
+/frontend/dist
 /target
+

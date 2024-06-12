@@ -7,10 +7,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::Executor;
 use std::net::SocketAddr;
 use std::env;
 use dotenv::dotenv;
+use tower_http::cors::{Any, CorsLayer};
+use axum::http::HeaderValue;
 
 #[derive(Deserialize, Serialize)]
 struct Question {
@@ -25,7 +26,7 @@ struct Answer {
 #[derive(Deserialize, Serialize)]
 struct QuestionWithAnswers {
     id: i32,
-    question: String,
+    question_text: String,
     answers: Vec<String>,
 }
 
@@ -41,7 +42,27 @@ async fn get_questions(Extension(pool): Extension<sqlx::PgPool>) -> impl IntoRes
         .await;
 
     match questions {
-        Ok(qs) => Json(json!({ "questions": qs })),
+        Ok(qs) => {
+            let mut questions_with_answers = Vec::new();
+            for question in qs {
+                let answers = sqlx::query!(
+                    "SELECT answer_text FROM answers WHERE question_id = $1",
+                    question.id
+                )
+                .fetch_all(&pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|record| record.answer_text)
+                .collect();
+                questions_with_answers.push(QuestionWithAnswers {
+                    id: question.id,
+                    question_text: question.question_text,
+                    answers,
+                });
+            }
+            Json(json!({ "questions": questions_with_answers }))
+        }
         Err(e) => {
             eprintln!("Failed to fetch questions: {}", e);
             Json(json!({ "error": "Failed to fetch questions" }))
@@ -159,28 +180,6 @@ async fn get_question_with_answers(Path(id): Path<i32>, Extension(pool): Extensi
     }
 }
 
-async fn initialize_database(pool: &sqlx::PgPool) {
-    if let Err(e) = pool.execute(
-        "
-        CREATE TABLE IF NOT EXISTS questions (
-            id SERIAL PRIMARY KEY,
-            question_text TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS answers (
-            id SERIAL PRIMARY KEY,
-            question_id INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
-            answer_text TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        "
-    ).await {
-        eprintln!("Failed to create tables: {}", e);
-    }
-}
-
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -192,8 +191,10 @@ async fn main() {
         .await
         .expect("Failed to create pool");
 
-    // Initialize the database
-    initialize_database(&pool).await;
+    let cors = CorsLayer::new()
+        .allow_origin(HeaderValue::from_static("http://127.0.0.1:5000"))
+        .allow_methods(Any)
+        .allow_headers(Any);
 
     let app = Router::new()
         .route("/questions", get(get_questions))
@@ -202,7 +203,8 @@ async fn main() {
         .route("/questions/:id", delete(delete_question))
         .route("/questions/:id/answers", post(add_answer))
         .route("/questions/:id", get(get_question_with_answers))
-        .layer(Extension(pool));
+        .layer(Extension(pool))
+        .layer(cors);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3030));
     println!("Server listening on {}", addr);

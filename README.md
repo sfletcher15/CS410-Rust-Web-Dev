@@ -76,3 +76,17 @@ Now that the database is setup and running we'll put the connection string in a 
 DATABASE_URL=postgres://localhost:5432/qa_db
 ```
 Running the app should then be as simple as `cargo run`.
+
+### Assignment 3 - Rust REST Front End
+Setting up the frontend is fairly simple compared to the backend.\
+We'll install all the required crates and add the wasm32-unknown-unknown build target.
+```
+cargo install trunk
+cargo install wasm-pack
+cargo install wasm-bindgen-cli
+rustup target add wasm32-unknown-unknown
+```
+Once we have these installed/setup its as easy as running `cargo run` from the backend dir to start the backend, and `trunk serve --open` from the frontend dir to start the frontend.
+The frontend should then open in a new browser window.
+
+This is a very simple frontend and just displays the questions as required. The backend must still be interacted with using curl commands for the rest of the CRUD functionality.
